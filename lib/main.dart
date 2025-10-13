@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'dart:convert';
 
-void main() => runApp(WebSocketTestApp());
+void main() => runApp(FileWatcherApp());
 
-class WebSocketTestApp extends StatelessWidget {
+class FileWatcherApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'تست وب‌سوکت',
+      title: 'فایل‌های جدید',
       theme: ThemeData.dark(),
-      home: WebSocketScreen(),
+      home: FileListScreen(),
     );
   }
 }
 
-class WebSocketScreen extends StatefulWidget {
+class FileListScreen extends StatefulWidget {
   @override
-  _WebSocketScreenState createState() => _WebSocketScreenState();
+  _FileListScreenState createState() => _FileListScreenState();
 }
 
-class _WebSocketScreenState extends State<WebSocketScreen> {
+class _FileListScreenState extends State<FileListScreen> {
   late WebSocketChannel channel;
-  final TextEditingController _controller = TextEditingController();
-  String receivedMessage = 'منتظر پیام...';
+  List<String> files = [];
 
   @override
   void initState() {
@@ -33,66 +33,33 @@ class _WebSocketScreenState extends State<WebSocketScreen> {
     );
 
     channel.stream.listen((message) {
-      setState(() {
-        receivedMessage = message;
-      });
-    }, onError: (error) {
-      setState(() {
-        receivedMessage = 'خطا در اتصال: $error';
-      });
-    }, onDone: () {
-      setState(() {
-        receivedMessage = 'اتصال بسته شد';
-      });
+      final data = json.decode(message);
+      if (data['type'] == 'new_file') {
+        setState(() {
+          files.add(data['name']);
+        });
+      }
     });
   }
 
   @override
   void dispose() {
     channel.sink.close();
-    _controller.dispose();
     super.dispose();
-  }
-
-  void sendMessage() {
-    if (_controller.text.isNotEmpty) {
-      channel.sink.add(_controller.text);
-      _controller.clear();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('ارتباط با سرور وب‌سوکت')),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Text(
-              'پیام دریافتی:',
-              style: TextStyle(fontSize: 18),
-            ),
-            SizedBox(height: 10),
-            Text(
-              receivedMessage,
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            Divider(height: 40),
-            TextField(
-              controller: _controller,
-              decoration: InputDecoration(
-                labelText: 'ارسال پیام به سرور',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: sendMessage,
-              child: Text('ارسال'),
-            ),
-          ],
-        ),
+      appBar: AppBar(title: Text('فایل‌های جدید')),
+      body: ListView.builder(
+        itemCount: files.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            leading: Icon(Icons.insert_drive_file),
+            title: Text(files[index]),
+          );
+        },
       ),
     );
   }
