@@ -5,8 +5,10 @@ import 'dart:convert';
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
-  final channel = WebSocketChannel.connect(
-    Uri.parse('ws://178.63.171.244:5000'), // آدرس سرور شما
+final channel = WebSocketChannel.connect(
+  Uri.parse('ws://178.63.171.244:5000'),
+);
+
   );
 
   @override
