@@ -1,85 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/io.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(BitcoinPriceApp());
 
-class MyApp extends StatelessWidget {
-  final channel = WebSocketChannel.connect(
-    Uri.parse('wss://echo.websocket.events'),
-  );
-
+class BitcoinPriceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: EchoTest(channel: channel),
+      title: 'Bitcoin Price',
+      theme: ThemeData.dark(),
+      home: BitcoinPriceScreen(),
     );
   }
 }
 
-class EchoTest extends StatefulWidget {
-  final WebSocketChannel channel;
-  EchoTest({required this.channel});
-
+class BitcoinPriceScreen extends StatefulWidget {
   @override
-  _EchoTestState createState() => _EchoTestState();
+  _BitcoinPriceScreenState createState() => _BitcoinPriceScreenState();
 }
 
-class _EchoTestState extends State<EchoTest> {
-  final _controller = TextEditingController();
-  String? _received;
+class _BitcoinPriceScreenState extends State<BitcoinPriceScreen> {
+  final channel = IOWebSocketChannel.connect(
+    Uri.parse('wss://stream.binance.com:9443/ws/btcusdt@trade'),
+  );
+
+  String price = '...';
 
   @override
   void initState() {
     super.initState();
-    widget.channel.stream.listen((message) {
-      setState(() {
-        _received = message;
-      });
-    }, onError: (error) {
-      setState(() {
-        _received = 'خطا: $error';
-      });
-    }, onDone: () {
-      setState(() {
-        _received = 'اتصال بسته شد';
-      });
+    channel.stream.listen((data) {
+      final match = RegExp(r'"p":"(\d+\.\d+)"').firstMatch(data);
+      if (match != null) {
+        setState(() {
+          price = match.group(1)!;
+        });
+      }
     });
-  }
-
-  void _sendMessage() {
-    if (_controller.text.isNotEmpty) {
-      widget.channel.sink.add(_controller.text);
-    }
   }
 
   @override
   void dispose() {
-    widget.channel.sink.close();
-    _controller.dispose();
+    channel.sink.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Echo WebSocket Test')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _controller,
-              decoration: InputDecoration(labelText: 'پیام برای ارسال'),
-            ),
-            SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _sendMessage,
-              child: Text('ارسال'),
-            ),
-            SizedBox(height: 20),
-            Text('پاسخ دریافتی:'),
-            Text(_received ?? 'هنوز پاسخی دریافت نشده'),
-          ],
+      appBar: AppBar(title: Text('قیمت لحظه‌ای بیت‌کوین')),
+      body: Center(
+        child: Text(
+          '$price USD',
+          style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
         ),
       ),
     );
