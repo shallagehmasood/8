@@ -13,3 +13,13 @@ workflows:
 
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
+
+    publishing:
+      email:
+        recipients:
+          - shallagehsaeed@gmail.com
+        notify:
+          success: true
+          failure: false
+        attachments:
+          - build/app/outputs/flutter-apk/app-release.apk
