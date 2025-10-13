@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:websocketchannel/websocketchannel.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:convert';
 
 void main() => runApp(MyApp());
