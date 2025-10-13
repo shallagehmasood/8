@@ -18,8 +18,4 @@ workflows:
       email:
         recipients:
           - shallagehsaeed@gmail.com
-        notify:
-          success: true
-          failure: false
-        attachments:
-          - build/app/outputs/flutter-apk/app-release.apk
+
