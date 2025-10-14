@@ -53,7 +53,7 @@ class _FileListScreenState extends State<FileListScreen> {
         itemCount: files.length,
         itemBuilder: (context, index) {
           final fileName = files[index];
-          final fileUrl = 'http://10.0.2.2:3001/files/$fileName';
+          final fileUrl = 'http://178.63.171.244:5001/files/$fileName';
 
           return ListTile(
             leading: fileName.endsWith('.png') || fileName.endsWith('.jpg')
