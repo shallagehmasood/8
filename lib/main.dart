@@ -57,7 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> fetchInitialSettings() async {
     try {
-      final res = await http.get(Uri.parse('http://YOUR_VPS_IP:5000/get-settings?userId=${widget.userId}'));
+      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final settings = data['settings'];
@@ -119,7 +119,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     try {
       final res = await http.post(
-        Uri.parse('http://YOUR_VPS_IP:5000/update-settings'),
+        Uri.parse('http://178.63.171.244:5000/update-settings'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
