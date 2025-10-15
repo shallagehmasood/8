@@ -58,7 +58,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    channel = IOWebSocketChannel.connect('ws://YOUR_VPS_IP:8765');
+    channel = IOWebSocketChannel.connect('ws://178.63.171.244:5000');
     for (var symbol in symbols) {
       selectedSymbols[symbol] = false;
       selectedTimeframes[symbol] = {
