@@ -234,3 +234,14 @@ final response = jsonDecode(res.body);
             SizedBox(height: 24),
             ...symbols.map(buildTimeframeSection).toList(),
             SizedBox(height: 24),
+            buildModeSection(),
+            SizedBox(height: 24),
+            Text('جلسات معاملاتی'),
+            buildSessionSection(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
