@@ -43,6 +43,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Map<String, Map<String, bool>> selectedTimeframes = {};
   Map<String, bool> selectedModes = {};
   Map<String, bool> selectedSessions = {};
+  Map<String, bool> isLoading = {};
   String selectedExclusiveMode = '';
 
   @override
@@ -52,6 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
     for (var s in symbols) {
       selectedSymbols[s] = false;
       selectedTimeframes[s] = {for (var tf in timeframes) tf: false};
+      isLoading[s] = false;
     }
     for (var m in modes) selectedModes[m] = false;
     for (var sess in sessions) selectedSessions[sess] = false;
@@ -111,26 +113,38 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void sendSetting(String key, dynamic value) {
+    setState(() {
+      isLoading[key] = true;
+    });
+
     final payload = {'userId': widget.userId, 'setting': {key: value}};
     channel.sink.add(jsonEncode(payload));
-    channel.stream.listen((message) async {
+channel.stream.listen((message) async {
       final response = jsonDecode(message);
       if (response['status'] == 'ok') {
         applySettings(response['settings']);
         await saveLocalSettings(response['settings']);
       }
+      setState(() {
+        isLoading[key] = false;
+      });
     });
   }
 
   Widget buildSymbolButton(String symbol) {
     final isSelected = selectedSymbols[symbol] ?? false;
+    final loading = isLoading[symbol] ?? false;
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected ? Colors.green : Colors.grey[300],
+        backgroundColor: loading
+            ? Colors.grey
+            : isSelected ? Colors.green : Colors.grey[300],
         foregroundColor: isSelected ? Colors.white : Colors.black,
       ),
-      onPressed: () => sendSetting(symbol, !isSelected),
-      child: Text(symbol),
+      onPressed: loading ? null : () => sendSetting(symbol, !isSelected),
+      child: loading
+          ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : Text(symbol),
     );
   }
 
@@ -138,11 +152,13 @@ class _SettingsPageState extends State<SettingsPage> {
     return ExpansionTile(
       title: Text('تایم‌فریم‌های $symbol'),
       children: timeframes.map((tf) {
+        final key = '$symbol:$tf';
         final isSelected = selectedTimeframes[symbol]![tf] ?? false;
+        final loading = isLoading[key] ?? false;
         return CheckboxListTile(
           title: Text(tf),
           value: isSelected,
-          onChanged: (val) => sendSetting('$symbol:$tf', val ?? false),
+          onChanged: loading ? null : (val) => sendSetting(key, val ?? false),
         );
       }).toList(),
     );
@@ -174,10 +190,11 @@ class _SettingsPageState extends State<SettingsPage> {
           spacing: 8,
           children: others.map((mode) {
             final isSelected = selectedModes[mode] ?? false;
+            final loading = isLoading[mode] ?? false;
             return FilterChip(
               label: Text(mode),
               selected: isSelected,
-              onSelected: (val) => sendSetting(mode, val),
+              onSelected: loading ? null : (val) => sendSetting(mode, val),
             );
           }).toList(),
         ),
@@ -190,10 +207,11 @@ class _SettingsPageState extends State<SettingsPage> {
       spacing: 8,
       children: sessions.map((sess) {
         final isSelected = selectedSessions[sess] ?? false;
+        final loading = isLoading[sess] ?? false;
         return FilterChip(
           label: Text(sess),
           selected: isSelected,
-          onSelected: (val) => sendSetting(sess, val),
+          onSelected: loading ? null : (val) => sendSetting(sess, val),
         );
       }).toList(),
     );
