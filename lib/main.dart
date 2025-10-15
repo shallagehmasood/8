@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:web_socket_channel/io.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,8 +20,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late WebSocketChannel channel;
-
   final List<String> symbols = [
     'EURUSD', 'XAUUSD', 'GBPUSD', 'USDJPY', 'AUDUSD',
     'CADJPY', 'BTCUSD', 'ETHUSD', 'USDCHF',
@@ -49,7 +45,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void initState() {
     super.initState();
-    channel = IOWebSocketChannel.connect('ws://178.63.171.244:5001');
     for (var s in symbols) {
       selectedSymbols[s] = false;
       selectedTimeframes[s] = {for (var tf in timeframes) tf: false};
@@ -62,7 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> fetchInitialSettings() async {
     try {
-      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
+      final res = await http.get(Uri.parse('http://YOUR_VPS_IP:5000/get-settings?userId=${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final settings = data['settings'];
@@ -112,22 +107,31 @@ class _SettingsPageState extends State<SettingsPage> {
     return result;
   }
 
-  void sendSetting(String key, dynamic value) {
+  Future<void> sendSetting(String key, dynamic value) async {
     setState(() {
       isLoading[key] = true;
     });
 
-    final payload = {'userId': widget.userId, 'setting': {key: value}};
-    channel.sink.add(jsonEncode(payload));
-channel.stream.listen((message) async {
-      final response = jsonDecode(message);
+    final payload = {
+      'userId': widget.userId,
+      'setting': {key: value}
+    };
+
+    try {
+      final res = await http.post(
+        Uri.parse('http://YOUR_VPS_IP:5000/update-settings'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+final response = jsonDecode(res.body);
       if (response['status'] == 'ok') {
         applySettings(response['settings']);
         await saveLocalSettings(response['settings']);
       }
-      setState(() {
-        isLoading[key] = false;
-      });
+    } catch (_) {}
+
+    setState(() {
+      isLoading[key] = false;
     });
   }
 
@@ -218,12 +222,6 @@ channel.stream.listen((message) async {
   }
 
   @override
-  void dispose() {
-    channel.sink.close();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('تنظیمات کاربر')),
@@ -236,13 +234,3 @@ channel.stream.listen((message) async {
             SizedBox(height: 24),
             ...symbols.map(buildTimeframeSection).toList(),
             SizedBox(height: 24),
-            buildModeSection(),
-            SizedBox(height: 24),
-            Text('جلسات معاملاتی'),
-            buildSessionSection(),
-          ],
-        ),
-      ),
-    );
-  }
-}
