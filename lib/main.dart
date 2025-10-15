@@ -2,23 +2,21 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'تنظیمات کاربر',
-      home: SettingsPage(userId: '786540582'),
-    );
+    return MaterialApp(title: 'تنظیمات کاربر', home: SettingsPage(userId: '786540582'));
   }
 }
 
 class SettingsPage extends StatefulWidget {
   final String userId;
   SettingsPage({required this.userId});
-
   @override
   _SettingsPageState createState() => _SettingsPageState();
 }
@@ -35,49 +33,93 @@ class _SettingsPageState extends State<SettingsPage> {
   final List<String> timeframes = [
     'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M10', 'M12',
     'M15', 'M20', 'M30', 'H1', 'H2', 'H3', 'H4',
-    'H6', 'H8', 'H12', 'D1', 'W1'
+    'H6', 'H8', 'H12', 'D1', 'W1', 'MN1'
   ];
 
+  final List<String> modes = ['A1', 'A2', 'B', 'C', 'D', 'E', 'F', 'G'];
   final List<String> sessions = ['SYDNEY', 'TOKYO', 'LONDON', 'NEWYORK'];
 
   Map<String, bool> selectedSymbols = {};
   Map<String, Map<String, bool>> selectedTimeframes = {};
+  Map<String, bool> selectedModes = {};
   Map<String, bool> selectedSessions = {};
   String selectedExclusiveMode = '';
-  Map<String, bool> selectedModes = {
-    'A1': false,
-    'A2': false,
-    'B': false,
-    'C': false,
-    'D': false,
-    'E': false,
-    'F': false,
-    'G': false,
-  };
 
   @override
   void initState() {
     super.initState();
-    channel = IOWebSocketChannel.connect('ws://178.63.171.244:5000');
-    for (var symbol in symbols) {
-      selectedSymbols[symbol] = false;
-      selectedTimeframes[symbol] = {
-        for (var tf in timeframes) tf: false,
-      };
+    channel = IOWebSocketChannel.connect('ws://178.63.171.244:5001');
+    for (var s in symbols) {
+      selectedSymbols[s] = false;
+      selectedTimeframes[s] = {for (var tf in timeframes) tf: false};
     }
-    for (var session in sessions) {
-      selectedSessions[session] = false;
+    for (var m in modes) selectedModes[m] = false;
+    for (var sess in sessions) selectedSessions[sess] = false;
+    fetchInitialSettings();
+  }
+
+  Future<void> fetchInitialSettings() async {
+    try {
+      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final settings = data['settings'];
+        applySettings(settings);
+        await saveLocalSettings(settings);
+      }
+    } catch (_) {
+      final local = await loadLocalSettings();
+      applySettings(local);
     }
   }
 
-  void sendSetting(String key, dynamic value) {
-    final payload = {
-      'userId': widget.userId,
-      'setting': {
-        key: value,
+  void applySettings(Map<String, dynamic> settings) {
+    setState(() {
+      for (var s in symbols) selectedSymbols[s] = settings[s] ?? false;
+      for (var s in symbols) {
+        for (var tf in timeframes) {
+          final key = '$s:$tf';
+          selectedTimeframes[s]![tf] = settings[key] ?? false;
+        }
       }
-    };
+      for (var m in modes) selectedModes[m] = settings[m] ?? false;
+      selectedExclusiveMode = selectedModes['A1'] == true ? 'A1' : selectedModes['A2'] == true ? 'A2' : '';
+      for (var sess in sessions) selectedSessions[sess] = settings[sess] ?? false;
+    });
+  }
+
+  Future<void> saveLocalSettings(Map<String, dynamic> settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    settings.forEach((k, v) {
+      if (v is bool) prefs.setBool(k, v);
+    });
+  }
+
+  Future<Map<String, dynamic>> loadLocalSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> result = {};
+    for (var s in symbols) result[s] = prefs.getBool(s) ?? false;
+    for (var s in symbols) {
+      for (var tf in timeframes) {
+        final key = '$s:$tf';
+        result[key] = prefs.getBool(key) ?? false;
+      }
+    }
+    for (var m in modes) result[m] = prefs.getBool(m) ?? false;
+    for (var sess in sessions) result[sess] = prefs.getBool(sess) ?? false;
+    return result;
+  }
+
+  void sendSetting(String key, dynamic value) {
+    final payload = {'userId': widget.userId, 'setting': {key: value}};
     channel.sink.add(jsonEncode(payload));
+    channel.stream.listen((message) async {
+      final response = jsonDecode(message);
+      if (response['status'] == 'ok') {
+        applySettings(response['settings']);
+        await saveLocalSettings(response['settings']);
+      }
+    });
   }
 
   Widget buildSymbolButton(String symbol) {
@@ -87,12 +129,7 @@ class _SettingsPageState extends State<SettingsPage> {
         backgroundColor: isSelected ? Colors.green : Colors.grey[300],
         foregroundColor: isSelected ? Colors.white : Colors.black,
       ),
-      onPressed: () {
-        setState(() {
-          selectedSymbols[symbol] = !isSelected;
-        });
-        sendSetting(symbol, selectedSymbols[symbol]);
-      },
+      onPressed: () => sendSetting(symbol, !isSelected),
       child: Text(symbol),
     );
   }
@@ -105,59 +142,42 @@ class _SettingsPageState extends State<SettingsPage> {
         return CheckboxListTile(
           title: Text(tf),
           value: isSelected,
-          onChanged: (val) {
-            setState(() {
-              selectedTimeframes[symbol]![tf] = val ?? false;
-            });
-            sendSetting('$symbol:$tf', val ?? false);
-          },
+          onChanged: (val) => sendSetting('$symbol:$tf', val ?? false),
         );
       }).toList(),
     );
   }
 
   Widget buildModeSection() {
-    final List<String> exclusiveModes = ['A1', 'A2'];
-    final List<String> otherModes = ['B', 'C', 'D', 'E', 'F', 'G'];
-
+    final exclusive = ['A1', 'A2'];
+    final others = ['B', 'C', 'D', 'E', 'F', 'G'];
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('انتخاب A1 یا A2 (فقط یکی)', style: TextStyle(fontWeight: FontWeight.bold)),
+        Text('مودهای انحصاری'),
         Row(
-          children: exclusiveModes.map((mode) {
+          children: exclusive.map((mode) {
             return Expanded(
               child: RadioListTile<String>(
                 title: Text(mode),
                 value: mode,
                 groupValue: selectedExclusiveMode,
                 onChanged: (val) {
-                  setState(() {selectedExclusiveMode = val!;
-                    selectedModes['A1'] = val == 'A1';
-                    selectedModes['A2'] = val == 'A2';
-                    sendSetting('A1', selectedModes['A1']);
-                    sendSetting('A2', selectedModes['A2']);
-                  });
+                  selectedExclusiveMode = val!;
+                  sendSetting('A1', val == 'A1');
+                  sendSetting('A2', val == 'A2');
                 },
               ),
             );
           }).toList(),
         ),
-        Divider(),
-        Text('سایر مودها', style: TextStyle(fontWeight: FontWeight.bold)),
         Wrap(
           spacing: 8,
-          children: otherModes.map((mode) {
+          children: others.map((mode) {
             final isSelected = selectedModes[mode] ?? false;
             return FilterChip(
               label: Text(mode),
               selected: isSelected,
-              onSelected: (val) {
-                setState(() {
-                  selectedModes[mode] = val;
-                  sendSetting(mode, val);
-                });
-              },
+              onSelected: (val) => sendSetting(mode, val),
             );
           }).toList(),
         ),
@@ -166,27 +186,16 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget buildSessionSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('جلسات معاملاتی', style: TextStyle(fontWeight: FontWeight.bold)),
-        Wrap(
-          spacing: 8,
-          children: sessions.map((session) {
-            final isSelected = selectedSessions[session] ?? false;
-            return FilterChip(
-              label: Text(session),
-              selected: isSelected,
-              onSelected: (val) {
-                setState(() {
-                  selectedSessions[session] = val;
-                  sendSetting(session, val);
-                });
-              },
-            );
-          }).toList(),
-        ),
-      ],
+    return Wrap(
+      spacing: 8,
+      children: sessions.map((sess) {
+        final isSelected = selectedSessions[sess] ?? false;
+        return FilterChip(
+          label: Text(sess),
+          selected: isSelected,
+          onSelected: (val) => sendSetting(sess, val),
+        );
+      }).toList(),
     );
   }
 
@@ -204,17 +213,14 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: const EdgeInsets.all(16.0),
         child: ListView(
           children: [
-            Text('جفت‌ارزها', style: TextStyle(fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: symbols.map(buildSymbolButton).toList(),
-            ),
+            Text('جفت‌ارزها'),
+            Wrap(spacing: 8, children: symbols.map(buildSymbolButton).toList()),
             SizedBox(height: 24),
             ...symbols.map(buildTimeframeSection).toList(),
             SizedBox(height: 24),
             buildModeSection(),
             SizedBox(height: 24),
+            Text('جلسات معاملاتی'),
             buildSessionSection(),
           ],
         ),
