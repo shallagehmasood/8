@@ -26,15 +26,31 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> fetchSettings() async {
     try {
-      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
+      final res = await http.get(Uri.parse(
+          'http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        final rawSettings = Map<String, dynamic>.from(data['settings']);
+
+        // مقداردهی پیش‌فرض برای هر نماد
+        for (final symbol in symbols) {
+          rawSettings.putIfAbsent(symbol, () => {
+                "timeframes": [],
+                "direction": "Buy",
+                "A": "A1",
+                "B": false
+              });
+        }
+
         setState(() {
-          settings = Map<String, dynamic>.from(data['settings']);
+          settings = rawSettings;
           loading = false;
         });
+      } else {
+        throw Exception("Server error");
       }
-    } catch (_) {
+    } catch (e) {
+      print("⚠️ Error loading settings: $e");
       setState(() => loading = false);
     }
   }
@@ -50,16 +66,13 @@ class _SettingsPageState extends State<SettingsPage> {
         headers: {"Content-Type": "application/json"},
         body: body,
       );
-    } catch (_) {}
+    } catch (e) {
+      print("⚠️ Error updating settings: $e");
+    }
   }
 
   Widget buildSymbolSettings(String symbol) {
-    final symbolData = settings[symbol] ?? {
-      "timeframes": [],
-      "direction": "Buy",
-      "A": "A1",
-      "B": false
-    };
+    final symbolData = settings[symbol]!;
 
     return ExpansionTile(
       title: Text(symbol),
@@ -135,13 +148,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return Scaffold(body: Center(child: CircularProgressIndicator()));
     return Scaffold(
       appBar: AppBar(title: Text('تنظیمات کاربر')),
-      body: ListView(
-        padding: EdgeInsets.all(16),
-        children: symbols.map(buildSymbolSettings).toList(),
-      ),
+      body: loading
+          ? Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: EdgeInsets.all(16),
+              children: symbols.map(buildSymbolSettings).toList(),
+            ),
     );
   }
 }
