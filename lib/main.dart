@@ -268,3 +268,28 @@ class _SettingsPageState extends State<SettingsPage> {
       ],
     );
   }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('User Settings')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ListView(
+          children: [
+            Text('Symbols'),
+            Wrap(spacing: 8, children: symbols.map(buildSymbolButton).toList()),
+            SizedBox(height: 24),
+            ...symbols.map(buildTimeframeSection).toList(),
+            SizedBox(height: 24),
+            buildModeSection(),
+            SizedBox(height: 24),
+            Text('Trading Sessions'),
+            buildSessionSection(),
+            SizedBox(height: 24),
+            buildImageGallery(),
+          ],
+        ),
+      ),
+    );
+  }
+}
