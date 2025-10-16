@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'dart:convert';
 
 void main() => runApp(MyApp());
@@ -25,11 +27,14 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   Map<String, bool> selections = {};
   Map<String, String> directions = {};
+  List<String> imageUrls = [];
+  late WebSocketChannel channel;
 
   @override
   void initState() {
     super.initState();
     fetchSettings();
+    connectWebSocket();
   }
 
   Future<void> fetchSettings() async {
@@ -52,6 +57,18 @@ class _MyAppState extends State<MyApp> {
     setState(() {
       if (value is bool) selections[key] = value;
       if (value is String) directions[key.split(":")[0]] = value;
+    });
+  }
+
+  void connectWebSocket() {
+    channel = IOWebSocketChannel.connect('ws://178.63.171.244:3000');
+    channel.sink.add(userId);
+    channel.stream.listen((message) {
+      final data = jsonDecode(message);
+      final url = data['image'];
+      setState(() {
+        imageUrls.add(url);
+      });
     });
   }
 
@@ -99,14 +116,29 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
+  Widget buildImageGallery(List<String> urls) {
+    if (urls.isEmpty) return Text('تصویری موجود نیست');
+    return Column(
+      children: urls.map((url) => Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Image.network(url),
+      )).toList(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: Text('تنظیمات کاربر')),
         body: SingleChildScrollView(
-          child: Column(
-            children: symbols.map((s) => buildSymbolSection(s)).toList(),
+child: Column(
+            children: [
+              ...symbols.map((s) => buildSymbolSection(s)).toList(),
+              Divider(),
+              Text('تصاویر دریافتی', style: TextStyle(fontSize: 20)),
+              buildImageGallery(imageUrls),
+            ],
           ),
         ),
       ),
