@@ -13,6 +13,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'تصاویر لحظه‌ای',
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: ImagePage(userId: userId),
     );
   }
@@ -40,13 +41,27 @@ class _ImagePageState extends State<ImagePage> {
   void connectWebSocket() {
     channel = WebSocketChannel.connect(Uri.parse('ws://178.63.171.244:3000'));
     channel.sink.add(widget.userId);
-    channel.stream.listen((message) {
-      final data = jsonDecode(message);
-      final url = data["image"];
-      setState(() {
-        imageUrls.insert(0, url);
-      });
-    });
+
+    channel.stream.listen(
+      (message) {
+        final data = jsonDecode(message);
+        if (data.containsKey("image")) {
+          final url = data["image"];
+          setState(() {
+            imageUrls.insert(0, url);
+          });
+        }
+      },
+      onError: (error) {
+        print("⚠️ WebSocket error: $error");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("خطا در اتصال WebSocket")),
+        );
+      },
+      onDone: () {
+        print("❌ WebSocket disconnected");
+      },
+    );
   }
 
   Future<void> fetchInitialImages() async {
@@ -58,8 +73,15 @@ class _ImagePageState extends State<ImagePage> {
         setState(() {
           imageUrls = List<String>.from(data["images"].reversed);
         });
+      } else {
+        throw Exception("Server error");
       }
-    } catch (_) {}
+    } catch (e) {
+      print("⚠️ Failed to fetch images: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("خطا در دریافت تصاویر اولیه")),
+      );
+    }
   }
 
   @override
@@ -87,18 +109,21 @@ class _ImagePageState extends State<ImagePage> {
           )
         ],
       ),
-      body: imageUrls.isEmpty
-          ? Center(child: Text("هیچ تصویری موجود نیست"))
-          : ListView.builder(
-              itemCount: imageUrls.length,
-              itemBuilder: (context, index) {
-                final url = imageUrls[index];
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Image.network(url),
-                );
-              },
-            ),
+      body: RefreshIndicator(
+        onRefresh: fetchInitialImages,
+        child: imageUrls.isEmpty
+            ? Center(child: Text("هیچ تصویری موجود نیست"))
+            : ListView.builder(
+                itemCount: imageUrls.length,
+                itemBuilder: (context, index) {
+                  final url = imageUrls[index];
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.network(url),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
