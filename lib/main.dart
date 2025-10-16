@@ -50,7 +50,11 @@ class _ImagePageState extends State<ImagePage> {
 
   Future<void> fetchMissedImages() async {
     try {
-      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-ready-images?userId=${widget.userId}'));
+      final res = await http.get(
+        Uri.parse(
+          'http://178.63.171.244:5000/get-ready-images?userId=${widget.userId}',
+        ),
+      );
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final urls = List<String>.from(data['images']);
@@ -70,11 +74,14 @@ class _ImagePageState extends State<ImagePage> {
           IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => SettingsPage(userId: widget.userId),
-              ));
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SettingsPage(userId: widget.userId),
+                ),
+              );
             },
-          )
+          ),
         ],
       ),
       body: imageUrls.isEmpty
@@ -88,9 +95,7 @@ class _ImagePageState extends State<ImagePage> {
                   onTap: () => showDialog(
                     context: context,
                     builder: (_) => Dialog(
-                      child: InteractiveViewer(
-                        child: Image.network(url),
-                      ),
+                      child: InteractiveViewer(child: Image.network(url)),
                     ),
                   ),
                   child: Padding(
