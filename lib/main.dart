@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -16,6 +15,8 @@ final timeframes = [
   'M30', 'H1', 'H2', 'H3', 'H4', 'H6', 'H8', 'H12', 'D1', 'W1', 'MN'
 ];
 
+String userId = "user123";
+
 class MyApp extends StatefulWidget {
   @override
   State<MyApp> createState() => _MyAppState();
@@ -23,56 +24,47 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   Map<String, bool> selections = {};
-  Map<String, String> directionSelections = {};
-  String userId = "user123"; // مقدار تستی
+  Map<String, String> directions = {};
 
   @override
   void initState() {
     super.initState();
-    loadLocalSettings();
+    fetchSettings();
   }
 
-  Future<void> loadLocalSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final Map<String, bool> loaded = {};
-    final Map<String, String> directions = {};
-
-    for (var s in symbols) {
-      loaded[s] = prefs.getBool(s) ?? false;
-      directions[s] = prefs.getString('$s:direction') ?? 'BUY/SELL';
-      for (var tf in timeframes) {
-        loaded['$s:$tf'] = prefs.getBool('$s:$tf') ?? false;
-      }
-    }
-
+  Future<void> fetchSettings() async {
+    final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=$userId'));
+    final data = jsonDecode(res.body);
     setState(() {
-      selections = loaded;
-      directionSelections = directions;
+      selections = Map<String, bool>.from(data);
+      for (var s in symbols) {
+        directions[s] = data['$s:direction'] ?? 'BUY/SELL';
+      }
     });
   }
 
-  Future<void> saveSetting(String key, dynamic value) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (value is bool) {
-      await prefs.setBool(key, value);
-      selections[key] = value;
-    } else if (value is String) {
-      await prefs.setString(key, value);
-      directionSelections[key.split(":")[0]] = value;
-    }
-    setState(() {});
+  Future<void> sendSetting(String key, dynamic value) async {
+    await http.post(
+      Uri.parse('http://YOUR_SERVER_IP:5000/set-setting'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({"userId": userId, "key": key, "value": value}),
+    );
+    setState(() {
+      if (value is bool) selections[key] = value;
+      if (value is String) directions[key.split(":")[0]] = value;
+    });
   }
 
   Widget buildToggle(String key) {
     return CheckboxListTile(
       title: Text(key),
       value: selections[key] ?? false,
-      onChanged: (val) => saveSetting(key, val),
+      onChanged: (val) => sendSetting(key, val),
     );
   }
 
   Widget buildDirectionSelector(String symbol) {
-    final selected = directionSelections[symbol] ?? 'BUY/SELL';
+    final selected = directions[symbol] ?? 'BUY/SELL';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: ['BUY', 'SELL', 'BUY/SELL'].map((option) {
@@ -81,14 +73,14 @@ class _MyAppState extends State<MyApp> {
             title: Text(option),
             value: option,
             groupValue: selected,
-            onChanged: (val) => saveSetting('$symbol:direction', val!),
+            onChanged: (val) => sendSetting('$symbol:direction', val!),
           ),
         );
       }).toList(),
     );
   }
 
-  Widget buildTimeframeSection(String symbol) {
+  Widget buildSymbolSection(String symbol) {
     return Card(
       margin: EdgeInsets.all(8),
       child: Padding(
@@ -100,27 +92,10 @@ class _MyAppState extends State<MyApp> {
             buildToggle(symbol),
             ...timeframes.map((tf) => buildToggle('$symbol:$tf')),
             SizedBox(height: 8),
-            Text('جهت معامله'),
             buildDirectionSelector(symbol),
           ],
         ),
       ),
-    );
-  }
-
-  Future<List<String>> fetchUserImages() async {
-    final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-user-images?userId=$userId'));
-    final data = jsonDecode(res.body);
-    return List<String>.from(data['images']);
-  }
-
-  Widget buildImageGallery(List<String> urls) {
-    if (urls.isEmpty) return Text('تصویری موجود نیست');
-    return Column(
-      children: urls.map((url) => Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Image.network(url),
-      )).toList(),
     );
   }
 
@@ -131,18 +106,7 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(title: Text('تنظیمات کاربر')),
         body: SingleChildScrollView(
           child: Column(
-            children: [
-              ...symbols.map((s) => buildTimeframeSection(s)),
-              Divider(),
-              Text('تصاویر دریافتی', style: TextStyle(fontSize: 20)),
-              FutureBuilder<List<String>>(
-                future: fetchUserImages(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) return CircularProgressIndicator();
-                  return buildImageGallery(snapshot.data!);
-                },
-              ),
-            ],
+            children: symbols.map((s) => buildSymbolSection(s)).toList(),
           ),
         ),
       ),
