@@ -136,13 +136,24 @@ class _SettingsPageState extends State<SettingsPage> {
 
     try {
       final res = await http.post(
-        Uri.parse('http://YOUR_VPS_IP:5000/update-settings'),
+        Uri.parse('http://178.63.171.244:5000/update-settings'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
       final response = jsonDecode(res.body);
       if (response['status'] == 'ok') {
-        applySettings(response['settings']);
+        // Update local state immediately
+        setState(() {
+          if (selectedSymbols.containsKey(key)) selectedSymbols[key] = value;
+          if (selectedModes.containsKey(key)) selectedModes[key] = value;
+          if (selectedSessions.containsKey(key)) selectedSessions[key] = value;
+          if (key.contains(':')) {
+            final parts = key.split(':');
+            if (parts.length == 2) selectedTimeframes[parts[0]]?[parts[1]] = value;
+          }
+          if (key == 'A1' && value == true) selectedExclusiveMode = 'A1';
+          if (key == 'A2' && value == true) selectedExclusiveMode = 'A2';
+        });
         await saveLocalSettings(response['settings']);
       }
     } catch (_) {}
@@ -268,6 +279,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ],
     );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
