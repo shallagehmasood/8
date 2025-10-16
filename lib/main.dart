@@ -10,7 +10,7 @@ void main() => runApp(MyApp());
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'تنظیمات کاربر', home: SettingsPage(userId: '786540582'));
+    return MaterialApp(title: 'User Settings', home: SettingsPage(userId: '786540582'));
   }
 }
 
@@ -61,7 +61,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void connectWebSocket() {
-    channel = IOWebSocketChannel.connect('ws://178.63.171.244:3000');
+    channel = IOWebSocketChannel.connect('ws://YOUR_VPS_IP:3000');
     channel.sink.add(widget.userId);
     channel.stream.listen((message) {
       final data = jsonDecode(message);
@@ -74,7 +74,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> fetchInitialSettings() async {
     try {
-      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
+      final res = await http.get(Uri.parse('http://YOUR_VPS_IP:5000/get-settings?userId=${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final settings = data['settings'];
@@ -171,7 +171,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget buildTimeframeSection(String symbol) {
     return ExpansionTile(
-      title: Text('تایم‌فریم‌های $symbol'),
+      title: Text('Timeframes for $symbol'),
       children: timeframes.map((tf) {
         final key = '$symbol:$tf';
         final isSelected = selectedTimeframes[symbol]![tf] ?? false;
@@ -190,7 +190,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final others = ['B', 'C', 'D', 'E', 'F', 'G'];
     return Column(
       children: [
-        Text('مودهای انحصاری'),
+        Text('Exclusive Modes'),
         Row(
           children: exclusive.map((mode) {
             return Expanded(
@@ -241,4 +241,30 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget buildImageGallery() {
     if (imageUrls.isEmpty) return SizedBox.shrink();
     return Column(
-      crossAxisAlignment: Cross
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Received Images',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 12),
+        ...imageUrls.map((url) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              url,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(child: CircularProgressIndicator());
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return Text('Failed to load image');
+              },
+            ),
+          ),
+        )),
+      ],
+    );
+  }
