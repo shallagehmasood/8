@@ -61,7 +61,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void connectWebSocket() {
-    channel = IOWebSocketChannel.connect('ws://YOUR_VPS_IP:3000');
+    channel = IOWebSocketChannel.connect('ws://178.63.171.244:3000');
     channel.sink.add(widget.userId);
     channel.stream.listen((message) {
       final data = jsonDecode(message);
@@ -74,7 +74,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> fetchInitialSettings() async {
     try {
-      final res = await http.get(Uri.parse('http://YOUR_VPS_IP:5000/get-settings?userId=${widget.userId}'));
+      final res = await http.get(Uri.parse('http://178.63.171.244:5000/get-settings?userId=${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final settings = data['settings'];
