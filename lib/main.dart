@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'settings_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'settings_page.dart'; // ایمپورت صفحه تنظیمات
 
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
+  final String userId = "786540582"; // شناسه تستی
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Image Receiver',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: ImagePage(userId: '11111'),
+      title: 'تصاویر لحظه‌ای',
+      home: ImagePage(userId: userId),
     );
   }
 }
@@ -21,55 +21,79 @@ class MyApp extends StatelessWidget {
 class ImagePage extends StatefulWidget {
   final String userId;
   ImagePage({required this.userId});
+
   @override
   _ImagePageState createState() => _ImagePageState();
 }
 
 class _ImagePageState extends State<ImagePage> {
-  List<String> imageUrls = [];
   late WebSocketChannel channel;
+  List<String> imageUrls = [];
 
   @override
   void initState() {
     super.initState();
     connectWebSocket();
-    fetchMissedImages();
+    fetchInitialImages();
   }
 
   void connectWebSocket() {
-    channel = IOWebSocketChannel.connect('ws://178.63.171.244:3000');
+    channel = WebSocketChannel.connect(Uri.parse('ws://178.63.171.244:3000'));
     channel.sink.add(widget.userId);
-    channel.stream.listen((message) {
-      final data = jsonDecode(message);
-      final url = data['image'];
-      setState(() {
-        imageUrls.add(url);
-      });
-    });
+
+    channel.stream.listen(
+      (message) {
+        final data = jsonDecode(message);
+        if (data.containsKey("image")) {
+          final url = data["image"];
+          setState(() {
+            imageUrls.insert(0, url);
+          });
+        }
+      },
+      onError: (error) {
+        print("⚠️ WebSocket error: $error");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("خطا در اتصال WebSocket")),
+        );
+      },
+      onDone: () {
+        print("❌ WebSocket disconnected");
+      },
+    );
   }
 
-  Future<void> fetchMissedImages() async {
+  Future<void> fetchInitialImages() async {
     try {
-      final res = await http.get(
-        Uri.parse(
-          'http://178.63.171.244:5000/get-ready-images?userId=${widget.userId}',
-        ),
-      );
+      final res = await http.get(Uri.parse(
+          'http://178.63.171.244:5000/get-ready-images?userId=${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        final urls = List<String>.from(data['images']);
         setState(() {
-          imageUrls.addAll(urls);
+          imageUrls = List<String>.from(data["images"].reversed);
         });
+      } else {
+        throw Exception("Server error");
       }
-    } catch (_) {}
+    } catch (e) {
+      print("⚠️ Failed to fetch images: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("خطا در دریافت تصاویر اولیه")),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    channel.sink.close();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('تصاویر دریافتی'),
+        title: Text('تصاویر لحظه‌ای'),
         actions: [
           IconButton(
             icon: Icon(Icons.settings),
@@ -81,43 +105,24 @@ class _ImagePageState extends State<ImagePage> {
                 ),
               );
             },
-          ),
+          )
         ],
       ),
-      body: imageUrls.isEmpty
-          ? Center(child: Text('هنوز تصویری دریافت نشده'))
-          : ListView.builder(
-              padding: EdgeInsets.all(16),
-              itemCount: imageUrls.length,
-              itemBuilder: (context, index) {
-                final url = imageUrls[index];
-                return GestureDetector(
-                  onTap: () => showDialog(
-                    context: context,
-                    builder: (_) => Dialog(
-                      child: InteractiveViewer(child: Image.network(url)),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        url,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(child: CircularProgressIndicator());
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Text('خطا در بارگذاری تصویر');
-                        },
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+      body: RefreshIndicator(
+        onRefresh: fetchInitialImages,
+        child: imageUrls.isEmpty
+            ? Center(child: Text("هیچ تصویری موجود نیست"))
+            : ListView.builder(
+                itemCount: imageUrls.length,
+                itemBuilder: (context, index) {
+                  final url = imageUrls[index];
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.network(url),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
