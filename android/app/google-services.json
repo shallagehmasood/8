@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "389506105555",
+    "project_id": "ping-c09ed",
+    "storage_bucket": "ping-c09ed.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:389506105555:android:c1f2c0c7318a7cc3939426",
+        "android_client_info": {
+          "package_name": "com.masood.imagepush"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCi17h096q2WSPNeSMJK6P3jX6PoXcRL34"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
