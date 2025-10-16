@@ -1,128 +1,92 @@
 import 'package:flutter/material.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'settings_page.dart'; // ایمپورت صفحه تنظیمات
 
-void main() => runApp(MyApp());
+final FlutterLocalNotificationsPlugin notifications = FlutterLocalNotificationsPlugin();
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  await initNotifications();
+  runApp(MyApp());
+}
+
+Future<void> initNotifications() async {
+  const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const settings = InitializationSettings(android: android);
+  await notifications.initialize(settings);
+
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    final title = message.notification?.title ?? "نوتیفیکیشن";
+    final body = message.notification?.body ?? "";
+    notifications.show(
+      0,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'channelId',
+          'تصاویر',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+        ),
+      ),
+    );
+  });
+}
 
 class MyApp extends StatelessWidget {
-  final String userId = "786540582"; // شناسه تستی
+  final String userId = "786540582";
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'تصاویر لحظه‌ای',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: ImagePage(userId: userId),
+      title: 'FCM Test',
+      home: HomePage(userId: userId),
     );
   }
 }
 
-class ImagePage extends StatefulWidget {
+class HomePage extends StatefulWidget {
   final String userId;
-  ImagePage({required this.userId});
-
+  HomePage({required this.userId});
   @override
-  _ImagePageState createState() => _ImagePageState();
+  _HomePageState createState() => _HomePageState();
 }
 
-class _ImagePageState extends State<ImagePage> {
-  late WebSocketChannel channel;
-  List<String> imageUrls = [];
+class _HomePageState extends State<HomePage> {
+  String? token;
 
   @override
   void initState() {
     super.initState();
-    connectWebSocket();
-    fetchInitialImages();
+    getAndSendToken();
   }
 
-  void connectWebSocket() {
-    channel = WebSocketChannel.connect(Uri.parse('ws://178.63.171.244:3000'));
-    channel.sink.add(widget.userId);
+  Future<void> getAndSendToken() async {
+    token = await FirebaseMessaging.instance.getToken();
+    print("📱 FCM Token: $token");
 
-    channel.stream.listen(
-      (message) {
-        final data = jsonDecode(message);
-        if (data.containsKey("image")) {
-          final url = data["image"];
-          setState(() {
-            imageUrls.insert(0, url);
-          });
-        }
-      },
-      onError: (error) {
-        print("⚠️ WebSocket error: $error");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("خطا در اتصال WebSocket")),
-        );
-      },
-      onDone: () {
-        print("❌ WebSocket disconnected");
-      },
+    await http.post(
+      Uri.parse('http://178.63.171.244:5000/save-token'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "userId": widget.userId,
+        "fcm_token": token,
+      }),
     );
-  }
-
-  Future<void> fetchInitialImages() async {
-    try {
-      final res = await http.get(Uri.parse(
-          'http://178.63.171.244:5000/get-ready-images?userId=${widget.userId}'));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          imageUrls = List<String>.from(data["images"].reversed);
-        });
-      } else {
-        throw Exception("Server error");
-      }
-    } catch (e) {
-      print("⚠️ Failed to fetch images: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("خطا در دریافت تصاویر اولیه")),
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    channel.sink.close();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('تصاویر لحظه‌ای'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SettingsPage(userId: widget.userId),
-                ),
-              );
-            },
-          )
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: fetchInitialImages,
-        child: imageUrls.isEmpty
-            ? Center(child: Text("هیچ تصویری موجود نیست"))
-            : ListView.builder(
-                itemCount: imageUrls.length,
-                itemBuilder: (context, index) {
-                  final url = imageUrls[index];
-                  return Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Image.network(url),
-                  );
-                },
-              ),
+      appBar: AppBar(title: Text("FCM Test")),
+      body: Center(
+        child: Text(token != null ? "توکن ثبت شد" : "در حال دریافت توکن..."),
       ),
     );
   }
